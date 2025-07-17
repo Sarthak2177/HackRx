@@ -1,1 +1,6 @@
-
+groq
+python-dotenv
+faiss-cpu
+unstructured
+pdf2image
+PyMuPDF
