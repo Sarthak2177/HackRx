@@ -4,3 +4,5 @@ faiss-cpu
 unstructured
 pdf2image
 PyMuPDF
+streamlit
+python-docx
