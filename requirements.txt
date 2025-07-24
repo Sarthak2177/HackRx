@@ -6,3 +6,4 @@ pdf2image
 PyMuPDF
 streamlit
 python-docx
+extract-msg
