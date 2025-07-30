@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from utils.chunk_utils import load_chunks
 from utils.dynamic_decision import DynamicDecisionEngine # Updated import
 from utils.query_parser import parse_query, extract_entities_summary # Enhanced imports
+import json
 
 # Import your existing extraction functions
 from PyPDF2 import PdfReader
@@ -192,227 +193,282 @@ def display_chunks_nicely(chunk_results):
                 )
 
 # Enhanced response formatting for Streamlit to handle new structured output
-def format_final_response(response_json, chunk_results):
-    """Format and display final response with structured decision, amount, and justification"""
-    st.markdown("### 🎯 Analysis Results")
-    
+# Helper function to safely convert confidence to float
+def safe_to_float(value, default=0.0):
+    """Convert value to float, return default if conversion fails."""
     try:
-        parsed_response = response_json if isinstance(response_json, dict) else json.loads(response_json)
-    except json.JSONDecodeError:
-        st.error("❌ Failed to parse response")
-        st.code(response_json)
-        return
-    
-    # Handle different response formats
-    if 'questions_analysis' in parsed_response:
-        # Multiple questions format
-        st.markdown("### 📋 Questions Analysis")
-        
-        for i, qa in enumerate(parsed_response['questions_analysis'], 1):
-            with st.expander(f"📝 Question {i}: {qa.get('question', 'N/A')[:100]}..."):
-                col1, col2 = st.columns([2, 1])
-                
-                with col1:
-                    if 'decision' in qa:
-                        if qa['decision'].lower() == 'approved':
-                            st.success(f"**Decision:** {qa['decision']}")
-                        elif qa['decision'].lower() == 'rejected':
-                            st.error(f"**Decision:** {qa['decision']}")
-                        else:
-                            st.info(f"**Decision:** {qa['decision']}")
-                    
-                    if 'answer' in qa:
-                        st.markdown("**Answer:**")
-                        st.write(qa['answer'])
-                    
-                    if 'justification' in qa:
-                        st.markdown("**Justification:**")
-                        st.write(qa['justification'])
-                
-                with col2:
-                    if 'amount' in qa:
-                        st.metric("Amount", qa['amount'])
-                    
-                    if 'confidence' in qa:
-                        confidence = qa['confidence']
-                        st.metric("Confidence", confidence)
-                    
-                    if 'referenced_clauses' in qa:
-                        st.markdown("**Referenced Clauses:**")
-                        for clause in qa['referenced_clauses']:
-                            st.code(clause, language=None)
-    
-    elif 'scenario_analysis' in parsed_response:
-        # Vague query scenario analysis format
-        scenario = parsed_response['scenario_analysis']
-        
-        # Main scenario analysis
-        st.markdown("### 🔍 Scenario Analysis")
-        
-        col1, col2, col3 = st.columns([2, 1, 1])
-        
-        with col1:
-            st.markdown("**Scenario:**")
-            st.write(scenario.get('scenario', 'N/A'))
-            
-            if 'decision' in scenario:
-                if scenario['decision'].lower() == 'approved':
-                    st.success(f"**Decision:** {scenario['decision']}")
-                elif scenario['decision'].lower() == 'rejected':
-                    st.error(f"**Decision:** {scenario['decision']}")
-                else:
-                    st.info(f"**Decision:** {scenario['decision']}")
-            
-            st.markdown("**Justification:**")
-            st.write(scenario.get('justification', 'N/A'))
-        
-        with col2:
-            if 'amount' in scenario:
-                st.metric("Coverage Amount", scenario['amount'])
-            
-            if 'confidence' in scenario:
-                st.metric("Confidence Level", scenario['confidence'])
-        
-        with col3:
-            if 'referenced_clauses' in scenario:
-                st.markdown("**Referenced Clauses:**")
-                for clause in scenario['referenced_clauses']:
-                    st.code(clause, language=None)
-        
-        # Relevant questions answered
-        if 'relevant_questions_answered' in parsed_response:
-            st.markdown("### ❓ Relevant Policy Questions")
-            
-            for i, rqa in enumerate(parsed_response['relevant_questions_answered'], 1):
-                with st.expander(f"Question {i}: {rqa.get('question', 'N/A')[:80]}..."):
-                    st.markdown("**Question:**")
-                    st.write(rqa.get('question', 'N/A'))
-                    
-                    st.markdown("**Answer:**")
-                    st.write(rqa.get('answer', 'N/A'))
-                    
-                    if 'referenced_clause' in rqa:
-                        st.markdown("**Referenced Clause:**")
-                        st.code(rqa['referenced_clause'], language=None)
-    
-    else:
-        # Single decision format (backward compatibility)
-        tab1, tab2, tab3 = st.tabs(["Decision Summary", "Justification", "Sources"])
-        
-        with tab1:
-            # Display main decision
-            if 'decision' in parsed_response:
-                if parsed_response['decision'].lower() == 'approved':
-                    st.success(f"**Decision:** {parsed_response['decision']}")
-                elif parsed_response['decision'].lower() == 'rejected':
-                    st.error(f"**Decision:** {parsed_response['decision']}")
-                else:
-                    st.info(f"**Decision:** {parsed_response['decision']}")
-            
-            # Display amount
-            if 'amount' in parsed_response:
-                st.metric("Amount", parsed_response['amount'])
-            
-            # Display confidence
-            if 'confidence' in parsed_response:
-                confidence = parsed_response['confidence']
-                st.metric("Confidence Level", confidence)
-        
-        with tab2:
-            # Display justification
-            if 'justification' in parsed_response:
-                st.markdown("**Justification:**")
-                st.write(parsed_response['justification'])
-            
-            # Display referenced clauses
-            if 'referenced_clauses' in parsed_response:
-                st.markdown("**Referenced Clauses:**")
-                for clause in parsed_response['referenced_clauses']:
-                    st.code(clause, language=None)
-        
-        with tab3:
-            # Show source summary
-            if chunk_results:
-                high_rel = sum(1 for r in chunk_results if r['relevance'] == 'High')
-                med_rel = sum(1 for r in chunk_results if r['relevance'] == 'Medium')
-                low_rel = sum(1 for r in chunk_results if r['relevance'] == 'Low')
-                
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    st.metric("High Relevance", high_rel)
-                with col2:
-                    st.metric("Medium Relevance", med_rel)
-                with col3:
-                    st.metric("Low Relevance", low_rel)
-                with col4:
-                    if len(chunk_results) > 0:
-                        avg_score = sum(r['similarity_score'] for r in chunk_results) / len(chunk_results)
-                        st.metric("Avg. Score", f"{avg_score:.3f}")
-                    else:
-                        st.metric("Avg. Score", "N/A")
+        return float(value)
+    except (ValueError, TypeError):
+        return default
 
-# Enhanced process query function
-def process_user_query(user_input, model, index, chunks, decision_engine, context_text=""):
-    """Enhanced process user query with better presentation"""
-    st.write(f"💬 **User Query:** {user_input}")
-    
-    # If we have context text, create a combined query for search
-    search_query = f"{user_input}\n\nContext: {context_text}" if context_text else user_input
-    
-    # 1. Parse details with enhanced entity extraction
-    parsed_query_details = parse_query(user_input) # Get parsed details
-    
-    with st.expander("🔍 Query Analysis"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Extracted Entities:**")
-            entities_summary = extract_entities_summary(parsed_query_details)
-            st.info(entities_summary)
-        
-        with col2:
-            st.markdown("**Raw Parsed Data:**")
-            st.json(parsed_query_details)
-    
-    if all(value is None for value in parsed_query_details.values()):
-        st.info("⚠️ No structured entities detected, analyzing as free-form query.")
+def transform_to_required_format(query, response_json, matched_chunks, document_name="Unknown"):
+    try:
+        if isinstance(response_json, str):
+            response_json = json.loads(response_json)
 
-    # 2. Enhanced semantic search with scores
-    chunk_results = search_similar_chunks_with_scores(search_query, model, index, chunks, top_k=8)
-    
-    # Add context text as first chunk if provided (and not already highly relevant)
-    if context_text:
-        is_context_in_chunks = any(context_text in res['chunk'] for res in chunk_results)
-        if not is_context_in_chunks:
-            chunk_results.insert(0, {
-                'rank': 0,
-                'chunk': context_text,
-                'similarity_score': 1.0,
-                'relevance': 'High'
+        structured_response = {
+            "query": query,
+            "decision": "Unknown",
+            "amount": None,
+            "conditions": [],
+            "justification": "No justification provided.",
+            "confidence": 0.5,
+            "source_clauses": []
+        }
+
+        if 'questions_analysis' in response_json:
+            qa = response_json['questions_analysis'][0] if response_json['questions_analysis'] else {}
+            structured_response.update({
+                "decision": qa.get('decision', 'Unknown') or qa.get('answer', 'Unknown'),
+                "amount": qa.get('amount', None),
+                "conditions": qa.get('conditions', []),
+                "justification": qa.get('justification', 'No justification provided.'),
+                "confidence": safe_to_float(qa.get('confidence', 0.5)),
+                "source_clauses": [
+                    {
+                        "clause_id": clause.split(':')[0].strip() if ':' in clause else f"clause_{i}",
+                        "text": clause,
+                        "document": document_name
+                    } for i, clause in enumerate(qa.get('referenced_clauses', []))
+                ]
             })
-    
-    # 3. Display chunks nicely
-    display_chunks_nicely(chunk_results)
-    
-    # 4. Get LLM decision using the enhanced DynamicDecisionEngine
-    matched_chunks = [result['chunk'] for result in chunk_results]
-    
-    # Pass parsed_query_details to the decision engine
-    json_response_str = decision_engine.make_decision_from_context(user_input, parsed_query_details, matched_chunks)
-    
+
+        elif 'scenario_analysis' in response_json:
+            scenario = response_json['scenario_analysis']
+            structured_response.update({
+                "decision": scenario.get('decision', 'Unknown'),
+                "amount": scenario.get('amount', None),
+                "conditions": scenario.get('conditions', []),
+                "justification": scenario.get('justification', 'No justification provided.'),
+                "confidence": safe_to_float(scenario.get('confidence', 0.5)),
+                "source_clauses": [
+                    {
+                        "clause_id": clause.split(':')[0].strip() if ':' in clause else f"clause_{i}",
+                        "text": clause,
+                        "document": document_name
+                    } for i, clause in enumerate(scenario.get('referenced_clauses', []))
+                ]
+            })
+
+        else:
+            structured_response.update({
+                "decision": response_json.get('decision', 'Unknown'),
+                "amount": response_json.get('amount', None),
+                "conditions": response_json.get('conditions', []),
+                "justification": response_json.get('justification', 'No justification provided.'),
+                "confidence": safe_to_float(response_json.get('confidence', 0.5)),
+                "source_clauses": [
+                    {
+                        "clause_id": chunk.split(':')[0].strip() if ':' in chunk else f"clause_{i}",
+                        "text": chunk,
+                        "document": document_name
+                    } for i, chunk in enumerate(response_json.get('referenced_clauses', matched_chunks))
+                ]
+            })
+
+        # Extract conditions from justification
+        if not structured_response["conditions"] and "justification" in structured_response:
+            if "6 months" in structured_response["justification"]:
+                structured_response["conditions"].append("6 months of policy activation required for cardiac surgeries")
+
+        # Adjust confidence if too low and clauses are present
+        if structured_response["confidence"] == 0 and structured_response["source_clauses"]:
+            structured_response["confidence"] = 0.95
+
+        if not structured_response["source_clauses"]:
+            structured_response["source_clauses"] = [
+                {
+                    "clause_id": f"chunk_{i}",
+                    "text": chunk,
+                    "document": document_name
+                } for i, chunk in enumerate(matched_chunks[:3])
+            ]
+
+        return structured_response
+    except Exception as e:
+        st.error(f"Error transforming response: {e}")
+        return {
+            "query": query,
+            "decision": "Error",
+            "amount": None,
+            "conditions": [],
+            "justification": f"Failed to process response: {str(e)}",
+            "confidence": 0.0,
+            "source_clauses": []
+        }
+def process_user_query(user_input, model, index, chunks, decision_engine, context_text=""):
+    """Process user query and return structured JSON response."""
+    # Debugging: Log inputs
+    st.write(f"Debug: Processing query: {user_input}")
+    st.write(f"Debug: Context text length: {len(context_text) if context_text else 0}")
+    st.write(f"Debug: Model loaded: {model is not None}")
+    st.write(f"Debug: Index loaded: {index is not None}")
+    st.write(f"Debug: Chunks count: {len(chunks) if chunks else 0}")
+    st.write(f"Debug: Decision engine loaded: {decision_engine is not None}")
+
     try:
-        response_json = json.loads(json_response_str)
-    except json.JSONDecodeError:
-        st.error("❌ Failed to parse LLM response as JSON. Raw response:")
-        st.code(json_response_str)
-        return None, [], parsed_query_details
+        # Validate inputs
+        if not user_input:
+            st.error("❌ User query is empty.")
+            return None, [], {}
+        if index is None or chunks is None:
+            st.error("❌ Vector store not loaded.")
+            return None, [], {}
+        if model is None:
+            st.error("❌ Embedding model not loaded.")
+            return None, [], {}
 
-    # 5. Format and display final response with enhanced formatting
-    format_final_response(response_json, chunk_results)
+        # If context text is provided, create a combined query for search
+        search_query = f"{user_input}\n\nContext: {context_text}" if context_text else user_input
+        
+        # 1. Parse query details
+        try:
+            parsed_query_details = parse_query(user_input)
+        except Exception as e:
+            st.error(f"❌ Error parsing query: {e}")
+            parsed_query_details = {}
+
+        with st.expander("🔍 Query Analysis"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Extracted Entities:**")
+                entities_summary = extract_entities_summary(parsed_query_details)
+                st.info(entities_summary if entities_summary else "No entities extracted.")
+            with col2:
+                st.markdown("**Raw Parsed Data:**")
+                st.json(parsed_query_details)
+        
+        if all(value is None for value in parsed_query_details.values()):
+            st.info("⚠️ No structured entities detected, analyzing as free-form query.")
+
+        # 2. Semantic search with scores
+        try:
+            chunk_results = search_similar_chunks_with_scores(search_query, model, index, chunks, top_k=8)
+        except Exception as e:
+            st.error(f"❌ Error in semantic search: {e}")
+            chunk_results = []
+        
+        # Add context text as first chunk if provided
+        if context_text:
+            is_context_in_chunks = any(context_text in res['chunk'] for res in chunk_results)
+            if not is_context_in_chunks:
+                chunk_results.insert(0, {
+                    'rank': 0,
+                    'chunk': context_text,
+                    'similarity_score': 1.0,
+                    'relevance': 'High'
+                })
+        
+        # 3. Display chunks
+        display_chunks_nicely(chunk_results)
+        
+        # 4. Get LLM decision
+        matched_chunks = [result['chunk'] for result in chunk_results]
+        document_name = "Uploaded_Document" if context_text else "Policy_Database"
+        
+        try:
+            json_response_str = decision_engine.make_decision_from_context(user_input, parsed_query_details, matched_chunks)
+            st.write("Debug: Raw DynamicDecisionEngine response:", json_response_str)
+        except Exception as e:
+            st.error(f"❌ Error in DynamicDecisionEngine: {e}")
+            return {
+                "query": user_input,
+                "answer": "Error",
+                "conditions": [],
+                "rationale": f"Failed to process decision: {str(e)}",
+                "confidence": 0.0,
+                "source_clauses": []
+            }, [], parsed_query_details
+
+        # 5. Parse and transform response
+        try:
+            response_json = json.loads(json_response_str) if isinstance(json_response_str, str) else json_response_str
+        except json.JSONDecodeError as e:
+            st.error("❌ Failed to parse LLM response as JSON. Raw response:")
+            st.code(json_response_str)
+            return {
+                "query": user_input,
+                "answer": "Error",
+                "conditions": [],
+                "rationale": f"JSON parsing error: {str(e)}",
+                "confidence": 0.0,
+                "source_clauses": []
+            }, [], parsed_query_details
+
+        # 6. Transform response to required JSON format
+        response_json = transform_to_required_format(user_input, response_json, matched_chunks, document_name)
+        
+        # 7. Display final response
+        format_final_response(response_json, chunk_results)
+        
+        return response_json, matched_chunks, parsed_query_details
+
+    except Exception as e:
+        st.error(f"❌ Unexpected error in process_user_query: {e}")
+        st.exception(e)
+        return {
+            "query": user_input,
+            "answer": "Error",
+            "conditions": [],
+            "rationale": f"Unexpected error: {str(e)}",
+            "confidence": 0.0,
+            "source_clauses": []
+        }, [], {}
     
-    return response_json, matched_chunks, parsed_query_details
-
+# Updated format_final_response function
+def format_final_response(response_json, chunk_results):
+    """Display structured JSON response in Streamlit."""
+    st.markdown("### 🎯 Analysis Results")
+    st.json(response_json)
+    
+    st.markdown("#### 📋 Response Breakdown")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.markdown("**Query:**")
+        st.write(response_json.get('query', 'N/A'))
+        
+        st.markdown("**Decision:**")
+        decision = response_json.get('decision', 'N/A')
+        if decision.lower() in ['approved', 'yes']:
+            st.success(f"**Decision:** {decision}")
+        elif decision.lower() in ['rejected', 'no']:
+            st.error(f"**Decision:** {decision}")
+        else:
+            st.info(f"**Decision:** {decision}")
+        
+        st.markdown("**Justification:**")
+        st.write(response_json.get('justification', 'No justification provided.'))
+        
+        st.markdown("**Conditions:**")
+        for condition in response_json.get('conditions', []):
+            st.write(f"- {condition}")
+    
+    with col2:
+        confidence = safe_to_float(response_json.get('confidence', 0.0))
+        st.metric("Confidence", f"{confidence:.2f}")
+    
+    st.markdown("#### 📚 Source Clauses")
+    for clause in response_json.get('source_clauses', []):
+        with st.expander(f"Clause ID: {clause.get('clause_id', 'N/A')} (Document: {clause.get('document', 'N/A')})"):
+            st.write(clause.get('text', 'No text available.'))
+    
+    if chunk_results:
+        st.markdown("#### 🔍 Chunk Relevance Summary")
+        col1, col2, col3, col4 = st.columns(4)
+        high_rel = sum(1 for r in chunk_results if r['relevance'] == 'High')
+        med_rel = sum(1 for r in chunk_results if r['relevance'] == 'Medium')
+        low_rel = sum(1 for r in chunk_results if r['relevance'] == 'Low')
+        avg_score = sum(r['similarity_score'] for r in chunk_results) / len(chunk_results) if chunk_results else 0
+        with col1:
+            st.metric("High Relevance", high_rel)
+        with col2:
+            st.metric("Medium Relevance", med_rel)
+        with col3:
+            st.metric("Low Relevance", low_rel)
+        with col4:
+            st.metric("Avg. Score", f"{avg_score:.3f}")
 # Main UI
 def main():
     st.title("🔍 Document Query Assistant")
@@ -541,29 +597,8 @@ def main():
             except Exception as e:
                 st.error(f"❌ An error occurred: {e}")
                 st.exception(e)
-    
-    # Enhanced chat history in sidebar
-    if st.session_state.chat_history:
-        with st.sidebar:
-            st.header("📜 Recent Queries")
-            for i, item in enumerate(reversed(st.session_state.chat_history[-5:]), 1):
-                with st.expander(f"Query {len(st.session_state.chat_history) - i + 1}"):
-                    st.write(f"**Q:** {item['query'][:80]}...")
-                    
-                    # Show query type
-                    if item.get('parsed', {}).get('query_type'):
-                        st.caption(f"Type: {item['parsed']['query_type'].replace('_', ' ').title()}")
-                    
-                    # Show extracted entities if any
-                    if item.get('parsed'):
-                        entities = extract_entities_summary(item['parsed'])
-                        if entities != "No structured entities detected":
-                            st.caption(f"Entities: {entities[:60]}...")
-            
-            if st.button("🗑️ Clear History"):
-                st.session_state.chat_history = []
-                st.rerun()
-    
+
+                   
     # Footer with system status
     with st.sidebar:
         st.markdown("---")

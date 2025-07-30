@@ -10,6 +10,9 @@ from dotenv import load_dotenv
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+print("GROQ API Key:", os.getenv("GROQ_API_KEY"))
+
+
 class DynamicDecisionEngine:
     def __init__(self):
         self.learned_rules = {}
@@ -331,3 +334,5 @@ Policy Clauses:
                 "confidence": "Low",
                 "error": str(e)
             })
+        
+        
