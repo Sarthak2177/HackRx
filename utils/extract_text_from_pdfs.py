@@ -6,7 +6,7 @@ import docx
 import extract_msg
 
 # Set Tesseract path
-pytesseract.pytesseract.tesseract_cmd = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # Input/output
 DOC_FOLDER = "Train"  # put all .pdf, .docx, .msg here
