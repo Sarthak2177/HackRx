@@ -1,4 +1,3 @@
-# ✅ main.py (RAG-enabled with HackRx-compliant input + auto question extraction + temp cleanup)
 
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -113,3 +112,5 @@ async def run_decision_engine(
     except Exception:
         answers = ["Could not determine answer from retrieved chunks."] * len(payload.questions)
 
+    response_time = round(time.time() - start_time, 2)
+    return {"answers": answers, "response_time_seconds": response_time}
