@@ -166,7 +166,10 @@ class DynamicDecisionEngine:
     def _handle_explicit_questions(self, user_input: str, questions: List[str], parsed_query_details: Dict[str, Any], full_context: str) -> str:
         """Handle explicit questions from user"""
         system_msg = """
+
 You are an expert insurance policy assistant. You will receive explicit questions and policy clauses.
+
+Always quote the exact waiting period, sub-limit amount, number of months or days, and clause numbers when available. If unsure, respond with “Not specified”.
 
 For each question, provide a JSON response with:
 {
