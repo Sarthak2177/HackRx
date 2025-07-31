@@ -1,0 +1,10 @@
+{
+  "build": {
+    "env": {
+      "PYTHONUNBUFFERED": "1"
+    }
+  },
+  "deploy": {
+    "startCommand": "./start.sh"
+  }
+}
