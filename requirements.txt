@@ -30,3 +30,4 @@ fastapi
 uvicorn[standard]
 # IMPORTANT: Uncomment the line below and use a specific version if you use local SentenceTransformers
 sentence-transformers
+PyMuPDF==1.22.5
