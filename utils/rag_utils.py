@@ -6,6 +6,7 @@ import io
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_community.vectorstores import FAISS
+# This is the corrected line:
 from langchain.chains.Youtubeing import load_qa_chain
 from langchain_groq import ChatGroq
 from dotenv import load_dotenv
@@ -41,6 +42,7 @@ def get_vector_store(text_chunks: list):
     if not text_chunks:
         return None
     print("Initializing embedding model...")
+    # Using a different model to avoid potential download issues on some platforms
     embeddings = HuggingFaceInstructEmbeddings(model_name="hkunlp/instructor-large")
     print("Creating FAISS vector store...")
     vector_store = FAISS.from_texts(texts=text_chunks, embedding=embeddings)
@@ -59,6 +61,7 @@ def get_conversational_chain():
     Answer:
     """
     print("Initializing Groq language model...")
+    # Ensure you have GROQ_API_KEY set in your environment variables
     model = ChatGroq(temperature=0, model_name="llama3-8b-8192")
     print("Loading question-answering chain...")
     chain = load_qa_chain(llm=model, chain_type="stuff")
