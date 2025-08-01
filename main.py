@@ -1,116 +1,71 @@
-
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.middleware.cors import CORSMiddleware
+# main.py
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
-import json
-import os
-import numpy as np
-import re
-import time
-from utils.dynamic_decision import DynamicDecisionEngine
-from utils.fetch_and_chunk_pdf import (
-    download_pdf_and_extract_text,
-    chunk_text,
-    embed_chunks,
-    get_top_k_chunks
+import uvicorn
+from utils.rag_utils import (
+    get_text_from_url,
+    get_text_chunks,
+    get_vector_store,
+    get_conversational_chain
 )
 
-app = FastAPI()
-decision_engine = DynamicDecisionEngine()
-
-security = HTTPBearer()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title="Real-time Document Q&A API",
+    description="An API that takes a PDF URL and a question, and returns an answer based on the document's content."
 )
 
 class QueryRequest(BaseModel):
-    documents: str  # URL of the PDF document
-    questions: List[str] = []  # Optional: will be extracted if not provided
+    pdf_url: str
+    query: str
 
-class QueryResponse(BaseModel):
-    answers: List[str]
-    response_time_seconds: float
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the Document Q&A API. Use the /ask endpoint to query a PDF."}
 
-def extract_questions_from_text(text: str, max_q: int = 10) -> List[str]:
-    question_words = (
-        "what", "how", "why", "can", "does", "is", "are", "do",
-        "should", "could", "when", "who", "where", "which", "will", "would"
-    )
-    lines = re.findall(r"[^\n\r]+?[?]", text)
-    questions = [
-        line.strip() for line in lines
-        if line.strip().lower().startswith(question_words) and len(line.strip()) > 20
-    ]
-    return questions[:max_q]
-
-@app.post("/hackrx/run", response_model=QueryResponse)
-async def run_decision_engine(
-    payload: QueryRequest,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-):
-    start_time = time.time()
-
-    token = credentials.credentials
-    if not token:
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+@app.post("/ask")
+async def ask_question(request: QueryRequest):
+    """
+    This endpoint performs the entire RAG process in real-time:
+    1. Downloads the PDF from the provided URL.
+    2. Extracts and chunks the text.
+    3. Creates a temporary, in-memory vector store.
+    4. Queries the vector store and a language model to find the answer.
+    """
+    if not request.pdf_url or not request.query:
+        raise HTTPException(status_code=400, detail="Both 'pdf_url' and 'query' are required.")
 
     try:
-        import hashlib, pickle
-        cache_key = hashlib.md5(payload.documents.encode()).hexdigest()
-        cache_path = f"cache/{cache_key}.pkl"
+        # --- Step 1: Get Text from PDF ---
+        raw_text = get_text_from_url(request.pdf_url)
+        if not raw_text:
+            raise HTTPException(status_code=500, detail="Failed to extract text from the PDF.")
 
-        if os.path.exists(cache_path):
-            with open(cache_path, "rb") as f:
-                cached_data = pickle.load(f)
-                chunks, chunk_embeddings = cached_data["chunks"], cached_data["embeddings"]
-        else:
-            raw_text = download_pdf_and_extract_text(payload.documents)
-            chunks = chunk_text(raw_text)
-            chunk_embeddings = embed_chunks(chunks)
-            os.makedirs("cache", exist_ok=True)
-            with open(cache_path, "wb") as f:
-                pickle.dump({"chunks": chunks, "embeddings": chunk_embeddings}, f)
-        if os.path.exists("temp_doc.pdf"):
-            os.remove("temp_doc.pdf")  # Cleanup temporary PDF file
+        # --- Step 2: Chunk the Text ---
+        text_chunks = get_text_chunks(raw_text)
+        if not text_chunks:
+            raise HTTPException(status_code=500, detail="Failed to split text into chunks.")
+
+        # --- Step 3: Create In-Memory Vector Store ---
+        vector_store = get_vector_store(text_chunks)
+        if not vector_store:
+            raise HTTPException(status_code=500, detail="Failed to create the vector store.")
+
+        # --- Step 4: Search for Relevant Documents ---
+        print("Searching for relevant documents in the vector store...")
+        docs = vector_store.similarity_search(request.query)
+        print(f"Found {len(docs)} relevant documents.")
+
+        # --- Step 5: Generate Answer using Conversational Chain ---
+        chain = get_conversational_chain()
+        response = chain({"input_documents": docs, "question": request.query}, return_only_outputs=True)
+        
+        print("✅ Successfully generated a response.")
+        return {"answer": response["output_text"]}
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
+        # Catch any other unexpected errors during the process
+        print(f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
 
-    if not payload.questions:
-        payload.questions = extract_questions_from_text(raw_text)
-
-    try:
-        answers = []
-        batch_size = 3
-        for i in range(0, len(payload.questions), batch_size):
-            batch_questions = payload.questions[i:i+batch_size]
-            batch_chunks = []
-            for q in batch_questions:
-                batch_chunks.extend(get_top_k_chunks(q, chunks, chunk_embeddings, k=4))
-            batch_chunks = list(set(batch_chunks))
-            joined_questions = "\n\n".join(batch_questions)
-            result = decision_engine.make_decision_from_context(joined_questions, {}, batch_chunks)
-
-            parsed_result = json.loads(result)
-            if isinstance(parsed_result, dict):
-                if 'questions_analysis' in parsed_result:
-                    answers.extend([qa.get('justification', '') or qa.get('answer', '') for qa in parsed_result["questions_analysis"]])
-                elif 'decision' in parsed_result:
-                    answers.append(parsed_result.get("justification", "") or parsed_result.get("answer", ""))
-                else:
-                    answers.append(result)
-            elif isinstance(parsed_result, list):
-                answers.extend([a.get("justification", "") or a.get("answer", "") for a in parsed_result])
-            else:
-                answers.append(result)
-    except Exception:
-        answers = ["Could not determine answer from retrieved chunks."] * len(payload.questions)
-
-    response_time = round(time.time() - start_time, 2)
-    return {"answers": answers, "response_time_seconds": response_time}
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
