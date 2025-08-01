@@ -1,18 +1,13 @@
+# requirements.txt (Definitive Version)
+fastapi
+uvicorn
+pydantic
+requests
+PyPDF2
+langchain
+langchain-community
+langchain-groq
+faiss-cpu
+sentence-transformers
 groq
 python-dotenv
-faiss-cpu
-# Note: These are kept for functionality if you use them locally for extraction,
-# but their underlying system dependencies might not be on Render's default image.
-unstructured[pdf,docx,email]
-pdf2image
-Pillow
-PyMuPDF
-streamlit
-python-docx
-extract-msg
-numpy
-requests
-fastapi
-uvicorn[standard]
-# IMPORTANT: Uncomment the line below and use a specific version if you use local SentenceTransformers
-sentence-transformers
