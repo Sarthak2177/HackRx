@@ -1,6 +1,6 @@
 # ✅ fetch_and_chunk_pdf.py
 
-import fitz  # PyMuPDF
+import fitz  
 import requests
 import numpy as np
 from sentence_transformers import SentenceTransformer
