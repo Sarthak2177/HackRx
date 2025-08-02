@@ -11,4 +11,5 @@ groq
 python-dotenv
 faiss-cpu
 sentence-transformers==2.6.1
-torch==2.5.1
+torch==2.5.1+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
