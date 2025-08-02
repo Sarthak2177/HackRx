@@ -10,4 +10,5 @@ langchain-groq
 groq
 python-dotenv
 faiss-cpu
-sentence-transformers
+sentence-transformers==2.6.1
+torch==2.5.1
