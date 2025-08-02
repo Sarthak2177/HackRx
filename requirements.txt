@@ -10,4 +10,3 @@ langchain-groq==0.3.6
 groq==0.30.0
 python-dotenv==1.1.1
 faiss-cpu==1.11.0.post1
-sentence-transformers @ git+https://github.com/Muennighoff/sentence-transformers.git@main#egg=sentence-transformers
