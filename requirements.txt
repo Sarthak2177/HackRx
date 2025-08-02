@@ -4,10 +4,10 @@ pydantic==2.11.7
 requests
 PyMuPDF==1.22.5
 numpy
-langchain
-langchain-community
-langchain-groq
-groq
-python-dotenv
-faiss-cpu
-sentence-transformers==2.2.2
+langchain==0.3.27
+langchain-community==0.3.27
+langchain-groq==0.3.6
+groq==0.30.0
+python-dotenv==1.1.1
+faiss-cpu==1.11.0.post1
+sentence-transformers @ git+https://github.com/Muennighoff/sentence-transformers.git@main#egg=sentence-transformers
