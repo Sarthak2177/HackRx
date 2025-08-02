@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 requests
 PyMuPDF==1.22.5
@@ -11,5 +11,5 @@ groq
 python-dotenv
 faiss-cpu
 sentence-transformers==2.6.1
-torch==2.5.1+cpu
---extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.1.2+cu121
+--extra-index-url https://download.pytorch.org/whl/cu121
