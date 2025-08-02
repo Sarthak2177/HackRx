@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +8,9 @@ import os
 import numpy as np
 import re
 import time
+import hashlib
+import pickle
+
 from utils.dynamic_decision import DynamicDecisionEngine
 from utils.fetch_and_chunk_pdf import (
     download_pdf_and_extract_text,
@@ -19,7 +21,6 @@ from utils.fetch_and_chunk_pdf import (
 
 app = FastAPI()
 decision_engine = DynamicDecisionEngine()
-
 security = HTTPBearer()
 
 app.add_middleware(
@@ -31,8 +32,8 @@ app.add_middleware(
 )
 
 class QueryRequest(BaseModel):
-    documents: str  # URL of the PDF document
-    questions: List[str] = []  # Optional: will be extracted if not provided
+    documents: str
+    questions: List[str] = []
 
 class QueryResponse(BaseModel):
     answers: List[str]
@@ -56,13 +57,11 @@ async def run_decision_engine(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     start_time = time.time()
-
     token = credentials.credentials
     if not token:
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
     try:
-        import hashlib, pickle
         cache_key = hashlib.md5(payload.documents.encode()).hexdigest()
         cache_path = f"cache/{cache_key}.pkl"
 
@@ -78,11 +77,12 @@ async def run_decision_engine(
             with open(cache_path, "wb") as f:
                 pickle.dump({"chunks": chunks, "embeddings": chunk_embeddings}, f)
         if os.path.exists("temp_doc.pdf"):
-            os.remove("temp_doc.pdf")  # Cleanup temporary PDF file
+            os.remove("temp_doc.pdf")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
 
     if not payload.questions:
+        raw_text = download_pdf_and_extract_text(payload.documents)
         payload.questions = extract_questions_from_text(raw_text)
 
     try:
