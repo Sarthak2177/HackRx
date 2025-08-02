@@ -2,7 +2,6 @@ import fitz
 import requests
 import numpy as np
 import re
-import openai
 import os
 
 # Set your OpenAI API key (use env variable in deployment)
@@ -54,5 +53,6 @@ def get_top_k_chunks(query: str, chunks: list, chunk_embeddings: np.ndarray, k: 
     scores = query_embedding @ chunk_embeddings.T
     top_indices = scores.argsort()[::-1][:k]
     return [chunks[i] for i in top_indices]
+
 
 
