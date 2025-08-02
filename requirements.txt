@@ -1,6 +1,6 @@
-fastapi
-uvicorn[standard]
-pydantic
+fastapi==0.116.1
+uvicorn==0.22.0
+pydantic==2.11.7
 requests
 PyMuPDF==1.22.5
 numpy
@@ -10,4 +10,5 @@ langchain-groq
 groq
 python-dotenv
 faiss-cpu
-sentence-transformers
+sentence-transformers==2.2.2
+torch==2.2.2+cpu
