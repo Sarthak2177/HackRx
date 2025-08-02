@@ -4,7 +4,7 @@ import torch
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from fetch_and_chunk_pdf import download_pdf_and_extract_text
+from utils.fetch_and_chunk_pdf import download_pdf_and_extract_text
 from rag_utils import chunk_text, embed_chunks, get_top_k_chunks
 from dynamic_decision import DynamicDecisionEngine
 
@@ -56,3 +56,4 @@ async def process_pdf_and_query(payload: PDFPayload):
 @app.get("/")
 def read_root():
     return {"status": "working"}
+
