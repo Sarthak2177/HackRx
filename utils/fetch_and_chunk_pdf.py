@@ -4,7 +4,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 # Load the embedding model once
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+embed_model = SentenceTransformer("paraphrase-MiniLM-L3-v2")
 
 def download_pdf_and_extract_text(url: str) -> str:
     """Download PDF from URL and extract text using PyMuPDF."""
