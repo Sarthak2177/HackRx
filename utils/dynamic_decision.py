@@ -5,16 +5,10 @@ from collections import defaultdict
 from groq import Groq
 import os
 from dotenv import load_dotenv
-import httpx
 
 # Load environment variables for API key
 load_dotenv()
-custom_http_client = httpx.Client()
-
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY"),
-    http_client=custom_http_client
-)
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 class DynamicDecisionEngine:
     def __init__(self):
@@ -140,6 +134,14 @@ class DynamicDecisionEngine:
         # Prepare context with numbered clauses
         context_with_lines = []
         for i, chunk in enumerate(chunks):
+            lines = re.split(r'(?<=[.!?])\s+', chunk.strip())
+            for j, line in enumerate(lines):
+                if line.strip():
+                    context_with_lines.append(f"Clause {i+1}.{j+1}: {line.strip()}")
+        
+        top_chunks = chunks[:10]  # or better: use TF-IDF like in main.py
+        context_with_lines = []
+        for i, chunk in enumerate(top_chunks):
             lines = re.split(r'(?<=[.!?])\s+', chunk.strip())
             for j, line in enumerate(lines):
                 if line.strip():
@@ -339,8 +341,4 @@ Policy Clauses:
                 "justification": f"LLM error: {str(e)}",
                 "confidence": "Low",
                 "error": str(e)
-
             })
-
-
-
