@@ -132,11 +132,14 @@ async def run_decision_engine(
                     ans = ans[:950].rsplit('.', 1)[0] + '.'
                 answers.append(ans.strip())
 
-    except Exception:
-        answers = ["Could not determine answer from retrieved chunks."] * len(payload.questions)
+    except Exception as e:
+       print("❌ Error during question processing:", str(e))
+       answers = [f"LLM processing failed: {str(e)}"] * len(payload.questions)
+
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
+
 
 
 
