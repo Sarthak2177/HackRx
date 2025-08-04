@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: hackrx-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start.sh
+    envVars:
+      - key: GROQ_API_KEY
+        value: your_real_key_here
