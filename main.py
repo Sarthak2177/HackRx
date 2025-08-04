@@ -65,7 +65,7 @@ def get_relevant_chunks(questions: List[str], chunks: List[str], top_k: int = 10
 
 def extract_definitions(text: str, keywords: List[str]) -> List[str]:
     definitions = []
-    pattern = re.compile(r"(Clause\s\d+(\.\d+)*).*?(?:(?=Clause\s\d+)|$)", re.DOTALL)
+    pattern = re.compile(r"(Clause\s\d+(\.\d+)*) .*?(?:(?=Clause\s\d+)|$)", re.DOTALL)
     for match in pattern.finditer(text):
         clause_text = match.group(0)
         if any(kw.lower() in clause_text.lower() for kw in keywords):
@@ -113,10 +113,9 @@ async def run_decision_engine(
             joined_questions = "\n\n".join(batch_questions)
             relevant_chunks = get_relevant_chunks(batch_questions, chunks)
             result = decision_engine.make_decision_from_context(joined_questions, {}, relevant_chunks)
-            print("🔍 Raw result from LLM:", result)
-
 
             parsed_result = json.loads(result)
+
             if isinstance(parsed_result, dict):
                 if 'questions_analysis' in parsed_result:
                     batch_answers = [qa.get('justification', '') or qa.get('answer', '') for qa in parsed_result["questions_analysis"]]
@@ -135,14 +134,8 @@ async def run_decision_engine(
                 answers.append(ans.strip())
 
     except Exception as e:
-       print("❌ Error during question processing:", str(e))
-       answers = [f"LLM processing failed: {str(e)}"] * len(payload.questions)
-
+        print("❌ Error during question processing:", str(e))
+        answers = [f"LLM processing failed: {str(e)}"] * len(payload.questions)
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
-
-
-
-
-
