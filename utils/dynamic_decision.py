@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 
 # Load environment variables for API key
 load_dotenv()
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+http_client = HttpxClient()
+client = Groq(api_key=os.getenv("GROQ_API_KEY"), http_client=http_client)
 
 class DynamicDecisionEngine:
     def __init__(self):
@@ -333,4 +334,5 @@ Policy Clauses:
                 "justification": f"LLM error: {str(e)}",
                 "confidence": "Low",
                 "error": str(e)
+
             })
