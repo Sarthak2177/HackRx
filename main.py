@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,21 +5,20 @@ from pydantic import BaseModel
 from typing import List
 import json
 import os
-import numpy as np
 import re
 import time
+import hashlib
+import pickle
 from utils.dynamic_decision import DynamicDecisionEngine
-from utils.fetch_and_chunk_pdf import (
-    download_pdf_and_extract_text,
-    chunk_text,
-    embed_chunks,
-    get_top_k_chunks
-)
+from utils.extract_text_from_pdfs import extract_text_from_pdf as download_pdf_and_extract_text
+from utils.chunk_utils import load_chunks as chunk_text
+from utils.pattern_analyzer import DocumentPatternAnalyzer
+from utils.query_parser import parse_query, extract_entities_summary
 
 app = FastAPI()
-decision_engine = DynamicDecisionEngine()
-
 security = HTTPBearer()
+decision_engine = DynamicDecisionEngine()
+pattern_analyzer = DocumentPatternAnalyzer()
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,8 +29,8 @@ app.add_middleware(
 )
 
 class QueryRequest(BaseModel):
-    documents: str  # URL of the PDF document
-    questions: List[str] = []  # Optional: will be extracted if not provided
+    documents: str
+    questions: List[str] = []
 
 class QueryResponse(BaseModel):
     answers: List[str]
@@ -50,6 +48,33 @@ def extract_questions_from_text(text: str, max_q: int = 10) -> List[str]:
     ]
     return questions[:max_q]
 
+def get_relevant_chunks(questions: List[str], chunks: List[str], top_k: int = 10, max_chars: int = 1500) -> List[str]:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+
+    question_text = " ".join(questions)
+    documents = chunks + [question_text]
+    vectorizer = TfidfVectorizer().fit_transform(documents)
+    vectors = vectorizer.toarray()
+
+    question_vec = vectors[-1]
+    chunk_vecs = vectors[:-1]
+
+    similarities = cosine_similarity([question_vec], chunk_vecs)[0]
+    ranked_chunks = sorted(zip(similarities, chunks), reverse=True)
+
+    top_chunks = [c[:max_chars] for _, c in ranked_chunks[:top_k]]
+    return top_chunks
+
+def extract_definitions(text: str, keywords: List[str]) -> List[str]:
+    definitions = []
+    pattern = re.compile(r"(Clause\s\d+(\.\d+)*).*?(?:(?=Clause\s\d+)|$)", re.DOTALL)
+    for match in pattern.finditer(text):
+        clause_text = match.group(0)
+        if any(kw.lower() in clause_text.lower() for kw in keywords):
+            definitions.append(clause_text.strip())
+    return definitions
+
 @app.post("/hackrx/run", response_model=QueryResponse)
 async def run_decision_engine(
     payload: QueryRequest,
@@ -62,7 +87,6 @@ async def run_decision_engine(
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
     try:
-        import hashlib, pickle
         cache_key = hashlib.md5(payload.documents.encode()).hexdigest()
         cache_path = f"cache/{cache_key}.pkl"
 
@@ -70,15 +94,14 @@ async def run_decision_engine(
             with open(cache_path, "rb") as f:
                 cached_data = pickle.load(f)
                 chunks, chunk_embeddings = cached_data["chunks"], cached_data["embeddings"]
+                raw_text = "\n".join(chunks)
         else:
             raw_text = download_pdf_and_extract_text(payload.documents)
             chunks = chunk_text(raw_text)
-            chunk_embeddings = embed_chunks(chunks)
+            chunk_embeddings = ["embedding_placeholder"] * len(chunks)
             os.makedirs("cache", exist_ok=True)
             with open(cache_path, "wb") as f:
                 pickle.dump({"chunks": chunks, "embeddings": chunk_embeddings}, f)
-        if os.path.exists("temp_doc.pdf"):
-            os.remove("temp_doc.pdf")  # Cleanup temporary PDF file
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process document: {str(e)}")
 
@@ -87,28 +110,31 @@ async def run_decision_engine(
 
     try:
         answers = []
-        batch_size = 3
+        batch_size = 2
         for i in range(0, len(payload.questions), batch_size):
             batch_questions = payload.questions[i:i+batch_size]
-            batch_chunks = []
-            for q in batch_questions:
-                batch_chunks.extend(get_top_k_chunks(q, chunks, chunk_embeddings, k=4))
-            batch_chunks = list(set(batch_chunks))
             joined_questions = "\n\n".join(batch_questions)
-            result = decision_engine.make_decision_from_context(joined_questions, {}, batch_chunks)
+            relevant_chunks = get_relevant_chunks(batch_questions, chunks)
+            result = decision_engine.make_decision_from_context(joined_questions, {}, relevant_chunks)
 
             parsed_result = json.loads(result)
             if isinstance(parsed_result, dict):
                 if 'questions_analysis' in parsed_result:
-                    answers.extend([qa.get('justification', '') or qa.get('answer', '') for qa in parsed_result["questions_analysis"]])
+                    batch_answers = [qa.get('justification', '') or qa.get('answer', '') for qa in parsed_result["questions_analysis"]]
                 elif 'decision' in parsed_result:
-                    answers.append(parsed_result.get("justification", "") or parsed_result.get("answer", ""))
+                    batch_answers = [parsed_result.get("justification", "") or parsed_result.get("answer", "")]
                 else:
-                    answers.append(result)
+                    batch_answers = [result]
             elif isinstance(parsed_result, list):
-                answers.extend([a.get("justification", "") or a.get("answer", "") for a in parsed_result])
+                batch_answers = [a.get("justification", "") or a.get("answer", "") for a in parsed_result]
             else:
-                answers.append(result)
+                batch_answers = [result]
+
+            for ans in batch_answers:
+                if len(ans) > 1000:
+                    ans = ans[:950].rsplit('.', 1)[0] + '.'
+                answers.append(ans.strip())
+
     except Exception:
         answers = ["Could not determine answer from retrieved chunks."] * len(payload.questions)
 
