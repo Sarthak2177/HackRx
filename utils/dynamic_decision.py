@@ -9,6 +9,7 @@ import httpx
 
 # Load environment variables for API key
 load_dotenv()
+print("🔐 GROQ_API_KEY at runtime:", os.getenv("GROQ_API_KEY"))
 custom_http_client = httpx.Client()
 
 client = Groq(
@@ -341,4 +342,5 @@ Policy Clauses:
                 "error": str(e)
 
             })
+
 
