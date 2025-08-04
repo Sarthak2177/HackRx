@@ -12,8 +12,6 @@ import pickle
 from utils.dynamic_decision import DynamicDecisionEngine
 from utils.extract_text_from_pdfs import extract_text_from_pdf as download_pdf_and_extract_text
 from utils.chunk_utils import load_chunks as chunk_text
-from utils.pattern_analyzer import DocumentPatternAnalyzer
-from utils.query_parser import parse_query, extract_entities_summary
 
 app = FastAPI()
 security = HTTPBearer()
@@ -140,3 +138,4 @@ async def run_decision_engine(
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
+
