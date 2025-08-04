@@ -16,7 +16,6 @@ from utils.chunk_utils import load_chunks as chunk_text
 app = FastAPI()
 security = HTTPBearer()
 decision_engine = DynamicDecisionEngine()
-pattern_analyzer = DocumentPatternAnalyzer()
 
 app.add_middleware(
     CORSMiddleware,
@@ -138,4 +137,5 @@ async def run_decision_engine(
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
+
 
