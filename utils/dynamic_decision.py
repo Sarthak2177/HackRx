@@ -5,6 +5,7 @@ from collections import defaultdict
 from groq import Groq
 import os
 from dotenv import load_dotenv
+import httpx
 
 # Load environment variables for API key
 load_dotenv()
@@ -340,3 +341,4 @@ Policy Clauses:
                 "error": str(e)
 
             })
+
