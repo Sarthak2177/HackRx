@@ -113,6 +113,8 @@ async def run_decision_engine(
             joined_questions = "\n\n".join(batch_questions)
             relevant_chunks = get_relevant_chunks(batch_questions, chunks)
             result = decision_engine.make_decision_from_context(joined_questions, {}, relevant_chunks)
+            print("🔍 Raw result from LLM:", result)
+
 
             parsed_result = json.loads(result)
             if isinstance(parsed_result, dict):
@@ -139,6 +141,7 @@ async def run_decision_engine(
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
+
 
 
 
