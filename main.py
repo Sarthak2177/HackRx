@@ -107,7 +107,7 @@ async def run_decision_engine(
 
     try:
         answers = []
-        batch_size = 2
+        batch_size = 4
         for i in range(0, len(payload.questions), batch_size):
             batch_questions = payload.questions[i:i+batch_size]
             joined_questions = "\n\n".join(batch_questions)
@@ -139,3 +139,4 @@ async def run_decision_engine(
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
+
