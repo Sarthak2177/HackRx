@@ -334,7 +334,7 @@ Policy Clauses:
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": user_msg}
                 ],
-                temperature=0.3,
+                temperature=0.1,
                 response_format=response_format
             )
             return chat_completion.choices[0].message.content.strip()
@@ -349,3 +349,4 @@ Policy Clauses:
                 "error": str(e)
 
             })
+
