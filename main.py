@@ -9,6 +9,7 @@ import re
 import time
 import hashlib
 import pickle
+import asyncio
 from utils.dynamic_decision import DynamicDecisionEngine
 from utils.extract_text_from_pdfs import extract_text_from_pdf as download_pdf_and_extract_text
 from utils.chunk_utils import chunk_text, load_chunks
@@ -106,32 +107,21 @@ async def run_decision_engine(
         payload.questions = extract_questions_from_text(raw_text)
 
     try:
-        answers = []
         batch_size = 2
+        tasks = []
+
         for i in range(0, len(payload.questions), batch_size):
             batch_questions = payload.questions[i:i+batch_size]
             joined_questions = "\n\n".join(batch_questions)
             relevant_chunks = get_relevant_chunks(batch_questions, chunks)
-            result = decision_engine.make_decision_from_context(joined_questions, {}, relevant_chunks)
 
-            parsed_result = json.loads(result)
+            task = asyncio.create_task(
+                process_question_batch(joined_questions, relevant_chunks, len(batch_questions))
+            )
+            tasks.append(task)
 
-            if isinstance(parsed_result, dict):
-                if 'questions_analysis' in parsed_result:
-                    batch_answers = [qa.get('justification', '') or qa.get('answer', '') for qa in parsed_result["questions_analysis"]]
-                elif 'decision' in parsed_result:
-                    batch_answers = [parsed_result.get("justification", "") or parsed_result.get("answer", "")]
-                else:
-                    batch_answers = [result]
-            elif isinstance(parsed_result, list):
-                batch_answers = [a.get("justification", "") or a.get("answer", "") for a in parsed_result]
-            else:
-                batch_answers = [result]
-
-            for ans in batch_answers:
-                if len(ans) > 1000:
-                    ans = ans[:950].rsplit('.', 1)[0] + '.'
-                answers.append(ans.strip())
+        all_answers = await asyncio.gather(*tasks)
+        answers = [ans for batch in all_answers for ans in batch]
 
     except Exception as e:
         print("❌ Error during question processing:", str(e))
@@ -139,3 +129,34 @@ async def run_decision_engine(
 
     response_time = round(time.time() - start_time, 2)
     return {"answers": answers, "response_time_seconds": response_time}
+
+
+async def process_question_batch(joined_questions: str, relevant_chunks: List[str], expected_count: int) -> List[str]:
+    result = decision_engine.make_decision_from_context(joined_questions, {}, relevant_chunks)
+
+    try:
+        parsed_result = json.loads(result)
+
+        if isinstance(parsed_result, dict):
+            if 'questions_analysis' in parsed_result:
+                batch_answers = [qa.get('justification', '') or qa.get('answer', '') for qa in parsed_result["questions_analysis"]]
+            elif 'decision' in parsed_result:
+                batch_answers = [parsed_result.get("justification", "") or parsed_result.get("answer", "")]
+            else:
+                batch_answers = [result]
+        elif isinstance(parsed_result, list):
+            batch_answers = [a.get("justification", "") or a.get("answer", "") for a in parsed_result]
+        else:
+            batch_answers = [result]
+
+    except Exception as e:
+        print("❌ Parsing error:", str(e))
+        batch_answers = [f"LLM parsing failed: {str(e)}"] * expected_count
+
+    final_answers = []
+    for ans in batch_answers:
+        if len(ans) > 1000:
+            ans = ans[:950].rsplit('.', 1)[0] + '.'
+        final_answers.append(ans.strip())
+
+    return final_answers
